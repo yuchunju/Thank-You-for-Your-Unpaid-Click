@@ -426,6 +426,7 @@
       const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
       let trackerFrame=0,trackerTimer=0,tx=0,ty=0,enabled=true,inside=false;
       let trackerDown=null,trackerDragging=false,movingUntil=0,clickedUntil=0;
+      let touchStart=null,touchDragging=false,touchHideTimer=0;
       let motionX=1,motionY=0,motionSpeed=0,gestureTime=0,animationTime=0;
       let operationCount=0,lastOperation='IDLE',seriesUntil=0,dragConsumedClick=false;
       function recordOperation(action,now,gap=0){
@@ -540,6 +541,37 @@
         const now=performance.now();recordOperation('CLICK',now);
         track(event);clickedUntil=now+360;requestTracker();
       },trackerOptions);
+      function touchPoint(event){
+        const touch=event.touches[0]||event.changedTouches[0];
+        return touch?{clientX:touch.clientX,clientY:touch.clientY}:null;
+      }
+      window.addEventListener('touchstart',event=>{
+        const point=touchPoint(event);if(!point)return;
+        clearTimeout(touchHideTimer);
+        const now=performance.now();
+        touchStart=point;touchDragging=false;inside=true;track(point);
+        recordOperation('TAPPING',now);clickedUntil=now+360;movingUntil=now+360;
+        requestTracker();
+      },{passive:true,capture:true});
+      window.addEventListener('touchmove',event=>{
+        const point=touchPoint(event);if(!point||!touchStart)return;
+        const now=performance.now(),dx=point.clientX-tx,dy=point.clientY-ty;
+        const distance=Math.hypot(point.clientX-touchStart.clientX,point.clientY-touchStart.clientY);
+        if(!touchDragging&&distance>5){touchDragging=true;recordOperation('DRAGGING',now);}
+        else if(!touchDragging&&Math.hypot(dx,dy)>0)recordOperation('MOVING',now,180);
+        if(Math.hypot(dx,dy)>0){motionX=dx/Math.hypot(dx,dy);motionY=dy/Math.hypot(dx,dy);}
+        track(point);movingUntil=now+180;requestTracker();
+      },{passive:true,capture:true});
+      window.addEventListener('touchend',event=>{
+        const point=touchPoint(event);if(point)track(point);
+        const token=performance.now();inside=true;touchStart=null;touchDragging=false;
+        clickedUntil=token+420;requestTracker();
+        clearTimeout(touchHideTimer);
+        touchHideTimer=setTimeout(()=>{inside=false;clickedUntil=0;movingUntil=0;requestTracker()},700);
+      },{passive:true,capture:true});
+      window.addEventListener('touchcancel',()=>{
+        touchStart=null;touchDragging=false;clearTimeout(touchHideTimer);resetTracker();
+      },{passive:true,capture:true});
       window.addEventListener('wheel',event=>{
         if(!event.deltaX&&!event.deltaY&&!event.deltaZ)return;
         recordOperation(event.target===scene?'ZOOM':'SCROLL',performance.now(),210);
