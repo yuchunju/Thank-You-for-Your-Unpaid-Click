@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title> </title>
+  <style>
+    :root { color-scheme: dark; --panel: #373740; --edge: #24242b; --ink: #bcbcc6; --left: 22%; --right: 188px; --upper: 72%; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { width: 100%; height: 100%; min-height: 100%; margin: 0; overflow: hidden; background: #18181d; }
+    body { min-height: 100dvh; }
+    body { font-family: system-ui, sans-serif; }
+    button, input { font: inherit; }
+    button { padding: 0; border: 0; border-radius: 2px; color: var(--ink); background: transparent; cursor: pointer; display: grid; place-items: center; }
+    button:hover { background: #ffffff0d; color: #fff; }
+    button[aria-pressed="true"] { color: #b8d8f4; background: #6b86a738; }
+    :is(button, input, [tabindex]):focus-visible { outline: 1px solid #adc5e4; outline-offset: -2px; }
+    svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+    .symbols { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .app { height: 100%; min-height: 100dvh; display: grid; grid-template-rows: 49px minmax(0, 1fr) 48px; }
+    .toolbar { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 0 12px; border-bottom: 1px solid var(--edge); background: #32323b; }
+    .toolbar button { width: 31px; height: 31px; flex: 0 0 auto; }
+    .separator { height: 18px; width: 1px; background: #53535d; margin: 0 7px; flex: 0 0 auto; }
+    .spacer { flex: 1; }
+    .swatch { width: 10px; height: 10px; border: 1px solid #ffffff40; background: var(--tone); }
+    .workspace { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(92px, var(--left)) 5px minmax(0, 1fr) 5px var(--right); }
+    .camera-strip { min-height: 0; overflow: auto; display: grid; grid-template-rows: repeat(5, minmax(78px, 1fr)); gap: 4px; padding: 5px 0 5px 5px; background: #303039; }
+    .camera { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #4c4c58; border-radius: 0; background: #171719; }
+    .camera[aria-pressed="true"] { border-color: #9aa99a; background: #171719; }
+    .camera canvas { width: 100%; height: 100%; display: block; filter: saturate(.62) brightness(.88); }
+    .camera .camera-mark { position: absolute; width: 13px; height: 13px; bottom: 6px; right: 6px; color: #e0e0e0; opacity: .6; }
+    .split { background: #282830; position: relative; touch-action: none; }
+    .split::after { content: ""; position: absolute; border-radius: 1px; background: #696975; }
+    .split.vertical { cursor: col-resize; }
+    .split.vertical::after { width: 1px; height: 32px; left: 2px; top: calc(50% - 16px); }
+    .split.horizontal { cursor: row-resize; }
+    .split.horizontal::after { height: 1px; width: 32px; top: 2px; left: calc(50% - 16px); }
+    .middle { display: grid; grid-template-rows: minmax(0, var(--upper)) 5px minmax(54px, 1fr); min-width: 0; min-height: 0; }
+    .viewport { position: relative; min-height: 0; overflow: hidden; background: #020202; }
+    #scene { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+    #scene[data-mode="draw"] { cursor: crosshair; }
+    #scene[data-mode="select"] { cursor: default; }
+    #scene.is-corner { cursor: move; }
+    #scene.is-dragging { cursor: grabbing; }
+    .mini-tools { position: absolute; left: 9px; bottom: 9px; display: flex; gap: 3px; }
+    .mini-tools button { width: 26px; height: 25px; background: #33333cd9; }
+    .mini-tools button svg { width: 15px; height: 15px; }
+    .axis { position: absolute; bottom: 12px; right: 13px; width: 30px; height: 30px; opacity: .7; pointer-events: none; }
+    .previews { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: #4a4a54; min-height: 0; }
+    .preview { position: relative; overflow: hidden; background: #030303; border-radius: 0; min-width: 0; min-height: 0; }
+    .preview[aria-pressed="true"] { background: #030303; box-shadow: inset 0 0 0 1px #9297a2; }
+    .preview canvas { display: block; height: 100%; width: 100%; opacity: .82; }
+    .preview .corner { position: absolute; inset: 8px auto auto 8px; width: 14px; height: 14px; color: #a5a8ae; }
+    .inspector { background: #3d3d47; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+    .inspector-head { display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 10px; border-bottom: 1px solid var(--edge); flex: 0 0 auto; }
+    .inspector-head button { width: 27px; height: 27px; }
+    .object-list { padding: 7px 5px; min-height: 120px; }
+    .object-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 27px; height: 34px; border-bottom: 1px solid #ffffff08; }
+    .object-row.selected { background: #7d8c9c20; }
+    .object-row button { min-width: 0; }
+    .object-row[aria-hidden="true"] { opacity: .4; }
+    .object-silhouette { display: flex; width: 100%; align-items: center; gap: 10px; padding: 0 9px; }
+    .object-silhouette i { height: 8px; width: 8px; flex: 0 0 auto; border: 1px solid var(--tone); }
+    .object-silhouette b { height: 1px; width: var(--length); background: #adadb755; }
+    .settings { display: grid; gap: 14px; padding: 19px 14px; border-top: 1px solid var(--edge); margin-top: auto; }
+    .setting { display: flex; align-items: center; gap: 12px; }
+    .setting svg { width: 15px; flex: 0 0 auto; opacity: .7; }
+    input[type="range"] { appearance: none; margin: 0; min-width: 0; height: 18px; background: transparent; cursor: ew-resize; accent-color: #a9bdcf; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: #71717d; }
+    input[type="range"]::-webkit-slider-thumb { appearance: none; height: 9px; width: 9px; border: 0; border-radius: 0; background: #c0cbd6; margin-top: -3.5px; }
+    input[type="range"]::-moz-range-track { height: 2px; background: #71717d; }
+    input[type="range"]::-moz-range-thumb { height: 9px; width: 9px; border: 0; border-radius: 0; background: #c0cbd6; }
+    .setting input { width: 100%; }
+    .timeline { display: flex; align-items: center; gap: 9px; min-width: 0; background: #373741; padding: 0 12px; border-top: 1px solid var(--edge); }
+    .timeline button { flex: 0 0 auto; width: 29px; height: 29px; }
+    .scrub-track { min-width: 0; flex: 1; height: 22px; padding: 0; position: relative; background: repeating-linear-gradient(90deg, #8da9c455 0, #8da9c455 calc(2.5% - 3px), transparent calc(2.5% - 3px), transparent 2.5%); }
+    #scrub { width: 100%; height: 22px; display: block; }
+    #scrub::-webkit-slider-runnable-track { height: 22px; background: transparent; }
+    #scrub::-webkit-slider-thumb { width: 7px; height: 26px; margin-top: -2px; background: #bddaff; }
+    #scrub::-moz-range-track { height: 22px; background: transparent; }
+    #scrub::-moz-range-thumb { width: 7px; height: 26px; background: #bddaff; }
+    #tracker { position: fixed; left: 0; top: 0; z-index: 2147483647; width: 0; height: 0; pointer-events: none; user-select: none; }
+    #tracker svg { position: absolute; left: -42px; top: -36px; width: 84px; height: 72px; overflow: visible; filter: drop-shadow(0 1px 1px #0009); }
+    #tracker-label { position: absolute; left: -35px; top: -52px; white-space: nowrap; color: #f6ee22; font: 13px/1.2 Arial, Helvetica, sans-serif; text-shadow: 0 1px 2px #000, 0 0 3px #0009; }
+    #tracker-label .voided { color: #ff5a36; }
+    @media (max-width: 850px) { :root { --right: 135px; } .toolbar { gap: 1px; padding: 0 5px; } .separator { margin: 0 4px; } .toolbar button { width: 28px; } }
+    @media (max-width: 600px) {
+      :root { --right: 0px; --left: 24%; --upper: 77%; }
+      .inspector, .right-split { display: none; }
+      .workspace { grid-template-columns: minmax(64px, var(--left)) 4px minmax(0, 1fr); }
+      .camera-strip { gap: 3px; padding: 3px 0 3px 3px; }
+      .color-tools { display: none !important; }
+      .toolbar { gap: 1px; padding: 0 4px; }
+      .toolbar button { width: 27px; height: 30px; }
+      .separator { margin: 0 3px; }
+      .timeline { padding: 0 4px; gap: 3px; }
+      .timeline button { width: 27px; }
+      .timeline .separator { display: none; }
+      .app { grid-template-rows: 44px minmax(0, 1fr) 42px; }
+      #tracker-label { font-size: 11px; left: -24px; top: -45px; }
+      #tracker svg { transform: scale(.85); transform-origin: center; }
+    }
+    @media (max-width: 420px) {
+      :root { --left: 20%; --upper: 74%; }
+      .workspace { grid-template-columns: minmax(56px, var(--left)) 3px minmax(0, 1fr); }
+      .toolbar button { width: 25px; }
+      .toolbar .separator { margin: 0 1px; }
+      .camera-strip { grid-template-rows: repeat(5, minmax(60px, 1fr)); }
+      #tracker-label { font-size: 10px; }
+    }
+    @media (orientation: landscape) and (max-height: 500px) {
+      .app { grid-template-rows: 40px minmax(0, 1fr) 38px; }
+      .camera-strip { grid-template-rows: repeat(5, minmax(50px, 1fr)); }
+      .timeline button { height: 25px; }
+    }
+    @supports not (height: 100dvh) {
+      body, .app { min-height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true"><defs>
+    <symbol id="i-pan" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="m12 3 9 5v9l-9 5-9-5V8Zm0 10v9M3 8l9 5 9-5M7.5 5.5l9 5v9"/></symbol>
+    <symbol id="i-draw" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM1 4h6M4 1v6M17 20h6M20 17v6"/></symbol>
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="m6 3 12 11-6 1-3 6Z"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-cross" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M5 7a8 8 0 1 1-1 9M5 2v5h5"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 9V3h6m6 0h6v6m0 6v6h-6m-6 0H3v-6M7 7h10v10H7z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M5 5v14m13-14-10 7 10 7Z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M19 5v14M6 5l10 7-10 7Z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M3 3h7v7H3Zm11 0h7v7h-7ZM3 14h7v7H3Zm11 0h7v7h-7Z"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v13H3Z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/></symbol>
+    <symbol id="i-lines" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16M8 2v6m8 1v6m-5 1v6"/></symbol>
+  </defs></svg>
+
+  <div class="app" id="app">
+    <div class="toolbar" role="toolbar" aria-label="标注工具">
+      <button id="cloud" aria-label="返回标注视图"><svg><use href="#i-cube"/></svg></button>
+      <span class="separator"></span>
+      <button data-mode="pan" aria-label="平移视图" aria-pressed="true"><svg><use href="#i-pan"/></svg></button>
+      <button data-mode="draw" aria-label="绘制标注框" aria-pressed="false"><svg><use href="#i-draw"/></svg></button>
+      <button data-mode="select" aria-label="选择或移动标注框" aria-pressed="false"><svg><use href="#i-pointer"/></svg></button>
+      <span class="separator"></span>
+      <button id="undo" aria-label="撤销最近一次编辑"><svg><use href="#i-reset"/></svg></button>
+      <button id="fit" aria-label="还原当前视图"><svg><use href="#i-fit"/></svg></button>
+      <button id="annotations" aria-label="显示新增标注框" aria-pressed="true"><svg><use href="#i-eye"/></svg></button>
+      <span class="spacer"></span>
+      <div class="color-tools" role="group" aria-label="标注颜色" style="display:flex;gap:3px">
+        <button class="color" data-color="#f1ec28" aria-label="黄色" aria-pressed="true"><i class="swatch" style="--tone:#f1ec28"></i></button>
+        <button class="color" data-color="#76ec66" aria-label="绿色" aria-pressed="false"><i class="swatch" style="--tone:#76ec66"></i></button>
+        <button class="color" data-color="#6ac9f1" aria-label="蓝色" aria-pressed="false"><i class="swatch" style="--tone:#6ac9f1"></i></button>
+      </div>
+    </div>
+
+    <div class="workspace">
+      <aside class="camera-strip" aria-label="相机视图">
+        <button class="camera" data-camera="0" aria-label="相机视图一" aria-pressed="false"><canvas></canvas><svg class="camera-mark"><use href="#i-camera"/></svg></button>
+        <button class="camera" data-camera="1" aria-label="相机视图二" aria-pressed="false"><canvas></canvas><svg class="camera-mark"><use href="#i-camera"/></svg></button>
+        <button class="camera" data-camera="2" aria-label="相机视图三" aria-pressed="false"><canvas></canvas><svg class="camera-mark"><use href="#i-camera"/></svg></button>
+        <button class="camera" data-camera="3" aria-label="相机视图四" aria-pressed="false"><canvas></canvas><svg class="camera-mark"><use href="#i-camera"/></svg></button>
+        <button class="camera" data-camera="4" aria-label="相机视图五" aria-pressed="false"><canvas></canvas><svg class="camera-mark"><use href="#i-camera"/></svg></button>
+      </aside>
+      <div class="split vertical" id="left-split" role="separator" tabindex="0" aria-label="调整相机栏宽度" aria-orientation="vertical" aria-valuemin="12" aria-valuemax="42" aria-valuenow="22"></div>
+      <main class="middle">
+        <div class="viewport">
+          <canvas id="scene" data-mode="pan" aria-label="标注视图，可平移、缩放或绘制标注框"></canvas>
+          <div class="mini-tools">
+            <button id="zoom-out" aria-label="缩小"><svg><use href="#i-minus"/></svg></button>
+            <button id="zoom-in" aria-label="放大"><svg><use href="#i-plus"/></svg></button>
+          </div>
+          <svg class="axis" viewBox="0 0 30 30" aria-hidden="true"><path d="M6 24h20M6 24V3M6 24l14-12" stroke="#a0a0ab"/><circle cx="6" cy="24" r="2" stroke="#9bce8a"/></svg>
+        </div>
+        <div class="split horizontal" id="lower-split" role="separator" tabindex="0" aria-label="调整下方视图高度" aria-orientation="horizontal" aria-valuemin="40" aria-valuemax="88" aria-valuenow="72"></div>
+        <div class="previews" aria-label="视图定位">
+          <button class="preview" data-preview="0" aria-label="定位到左侧" aria-pressed="false"><canvas></canvas><svg class="corner"><use href="#i-fit"/></svg></button>
+          <button class="preview" data-preview="1" aria-label="定位到中央" aria-pressed="false"><canvas></canvas><svg class="corner"><use href="#i-fit"/></svg></button>
+          <button class="preview" data-preview="2" aria-label="定位到右侧" aria-pressed="false"><canvas></canvas><svg class="corner"><use href="#i-fit"/></svg></button>
+        </div>
+      </main>
+      <div class="split vertical right-split" id="right-split" role="separator" tabindex="0" aria-label="调整属性栏宽度" aria-orientation="vertical" aria-valuemin="112" aria-valuemax="300" aria-valuenow="188"></div>
+      <aside class="inspector" aria-label="新增标注与显示属性">
+        <div class="inspector-head"><svg aria-hidden="true"><use href="#i-lines"/></svg><button id="add" aria-label="开始新增标注"><svg><use href="#i-plus"/></svg></button></div>
+        <div class="object-list" id="objects"></div>
+        <div class="settings">
+          <label class="setting"><svg aria-hidden="true"><use href="#i-sun"/></svg><input id="brightness" type="range" min="50" max="150" value="100" aria-label="亮度"></label>
+          <label class="setting"><svg aria-hidden="true"><use href="#i-eye"/></svg><input id="opacity" type="range" min="10" max="100" value="100" aria-label="新增标注框透明度"></label>
+        </div>
+      </aside>
+    </div>
+
+    <div class="timeline">
+      <button id="previous" aria-label="向左平移预览"><svg><use href="#i-back"/></svg></button>
+      <button id="play" aria-label="播放平移预览" aria-pressed="false"><svg><use href="#i-play"/></svg></button>
+      <button id="next" aria-label="向右平移预览"><svg><use href="#i-next"/></svg></button>
+      <span class="separator"></span>
+      <div class="scrub-track"><input id="scrub" type="range" min="0" max="1000" value="500" aria-label="平移位置"></div>
+      <span class="separator"></span>
+      <button id="reset" aria-label="重置所有编辑"><svg><use href="#i-reset"/></svg></button>
+    </div>
+  </div>
+
+  <div id="tracker" aria-hidden="true" hidden>
+    <svg viewBox="0 0 84 72"><g fill="none" stroke="#f6ee22" stroke-width="1.45" stroke-linejoin="round"><path d="M8 18H62V64H8ZM22 8H76V54H22ZM8 18 22 8M62 18 76 8M62 64 76 54M8 64 22 54"/></g><g fill="#63ff62" stroke="none"><circle cx="8" cy="18" r="2.15"/><circle cx="62" cy="18" r="2.15"/><circle cx="8" cy="64" r="2.15"/><circle cx="62" cy="64" r="2.15"/><circle cx="22" cy="8" r="2.15"/><circle cx="76" cy="8" r="2.15"/><circle cx="22" cy="54" r="2.15"/><circle cx="76" cy="54" r="2.15"/></g></svg>
+    <span id="tracker-label">0. <span class="voided">VOIDED</span>; idle; 0%-0%</span>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+      const $ = (s) => document.querySelector(s);
+      const $$ = (s) => [...document.querySelectorAll(s)];
+      const app = $('#app'), scene = $('#scene'), ctx = scene.getContext('2d');
+      const tracker = $('#tracker'), scrub = $('#scrub');
+      const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
+      // Virtual view dimensions preserve the annotation coordinates without any image asset.
+      const mainViewSize={width:1166,height:515};
+      const cameraViewSizes=[54,75,136,53,135].map(height=>({width:286,height}));
+      // Both faces have independent vertices; neither is projected from the other.
+      const rectangle=(x,y,w,h)=>[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+      const makeBox=(x,y,w,h,color)=>{
+        const depth=clamp(w*.15,9,26);
+        return {points:[...rectangle(x,y,w,h),...rectangle(x+depth,y-depth,w,h)],depth,color,visible:true};
+      };
+      const makeBoxes=()=>[
+        makeBox(630,210,158,88,'#f1ec28'),
+        makeBox(405,290,145,76,'#76ec66'),
+        makeBox(833,309,113,94,'#6ac9f1')
+      ];
+      const state = { ready:false, mode:'pan', camera:-1, zoom:1, panX:0, panY:0, brightness:100, opacity:1, boxes:makeBoxes(), selected:0, color:'#f1ec28', annotations:true, play:false, phase:500 };
+      let width=0, height=0, scale=1, offsetX=0, offsetY=0;
+      let pointer=null, draft=null, frame=0, lastTime=0;
+      const history=[];
+
+      function saveHistory() {
+        history.push(JSON.stringify({boxes:state.boxes,selected:state.selected}));
+        if(history.length>40) history.shift();
+      }
+      function icon(name) { return `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`; }
+      function updateObjects() {
+        const list=$('#objects'); list.replaceChildren();
+        state.boxes.forEach((box,i)=>{
+          const row=document.createElement('div');
+          row.className='object-row'+(i===state.selected?' selected':'');
+          const eye=document.createElement('button');
+          eye.setAttribute('aria-label',`显示新增标注 ${i+1}`); eye.setAttribute('aria-pressed',String(box.visible)); eye.innerHTML=icon('eye');
+          eye.addEventListener('click',()=>{saveHistory();box.visible=!box.visible;updateObjects();requestDraw()});
+          const select=document.createElement('button');
+          select.setAttribute('aria-label',`选择新增标注 ${i+1}`);
+          select.innerHTML=`<span class="object-silhouette" style="--tone:${box.color};--length:${[45,70,56][i%3]}%"><i></i><b></b></span>`;
+          select.addEventListener('click',()=>{state.selected=i;setMode('select');updateObjects();requestDraw()});
+          const remove=document.createElement('button'); remove.setAttribute('aria-label',`删除新增标注 ${i+1}`);remove.innerHTML=icon('cross');
+          remove.addEventListener('click',()=>{saveHistory();state.boxes.splice(i,1);state.selected=Math.min(state.selected,state.boxes.length-1);updateObjects();requestDraw()});
+          row.append(eye,select,remove);list.append(row);
+        });
+      }
+      function fitCanvas(canvas) {
+        const r=canvas.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2);
+        const w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));
+        if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}
+        return {w:r.width,h:r.height,dpr};
+      }
+      function drawBlank(canvas) {
+        const size=fitCanvas(canvas),c=canvas.getContext('2d');
+        c.setTransform(size.dpr,0,0,size.dpr,0,0);c.fillStyle='#020202';c.fillRect(0,0,size.w,size.h);
+      }
+      function requestDraw(){if(!frame)frame=requestAnimationFrame(draw)}
+      function projected(box){
+        const d=box.depth/Math.max(1,state.zoom*.3)-box.depth;
+        return box.points.slice(4).map(({x,y})=>({x:x+d,y:y-d}));
+      }
+      function drawBox(box,selected=false) {
+        const front=box.points.slice(0,4),back=projected(box);
+        ctx.strokeStyle=box.color;ctx.lineWidth=(selected?1.4:1)/scale;
+        ctx.beginPath();
+        for(const plane of [front,back]){
+          ctx.moveTo(plane[0].x,plane[0].y);
+          plane.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();
+        }
+        front.forEach((p,i)=>{ctx.moveTo(p.x,p.y);ctx.lineTo(back[i].x,back[i].y)});
+        ctx.stroke();ctx.fillStyle='#72f96c';
+        for(const {x,y} of [...front,...back]){ctx.beginPath();ctx.arc(x,y,(selected?2.4:1.6)/scale,0,Math.PI*2);ctx.fill()}
+      }
+      function draw(now) {
+        frame=0;
+        const size=fitCanvas(scene);width=size.w;height=size.h;
+        ctx.setTransform(size.dpr,0,0,size.dpr,0,0);ctx.fillStyle='#020202';ctx.fillRect(0,0,width,height);
+        if(!state.ready)return;
+        if(state.play){
+          if(lastTime) state.phase=(state.phase+Math.min(now-lastTime,60)*.035)%1000;
+          scrub.value=state.phase;
+          lastTime=now;
+        }
+        const viewSize=state.camera<0?mainViewSize:cameraViewSizes[state.camera];
+        const fit=Math.min(width/viewSize.width,height/viewSize.height)*.95;
+        scale=fit*state.zoom;
+        offsetX=(width-viewSize.width*scale)/2+state.panX+(state.phase-500)*.18;
+        offsetY=(height-viewSize.height*scale)/2+state.panY;
+        ctx.save();ctx.translate(offsetX,offsetY);ctx.scale(scale,scale);
+        if(state.camera<0&&state.annotations){ctx.globalAlpha=state.opacity;state.boxes.forEach((box,i)=>{if(box.visible)drawBox(box,i===state.selected)});if(draft)drawBox(draft,true)}
+        ctx.restore();
+        if(state.play)requestDraw();
+      }
+      function updateAll() {
+        if(state.ready)$$('.camera canvas,.preview canvas').forEach(drawBlank);
+        requestDraw();
+      }
+      function setMode(mode){state.mode=mode;scene.dataset.mode=mode;scene.classList.remove('is-corner');$$('[data-mode]').filter(el=>el.tagName==='BUTTON').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.mode===mode)))}
+      function showCloud(){state.camera=-1;$$('.camera').forEach(el=>el.setAttribute('aria-pressed','false'));resetView()}
+      function stop(){state.play=false;lastTime=0;$('#play').setAttribute('aria-pressed','false');$('#play').innerHTML=icon('play')}
+      function resetView(){stop();state.zoom=1;state.panX=state.panY=0;state.phase=500;scrub.value=500;$$('.preview').forEach(el=>el.setAttribute('aria-pressed','false'));requestDraw()}
+      function zoom(factor,cx=width/2,cy=height/2){
+        const next=clamp(state.zoom*factor,.35,6),r=next/state.zoom;
+        state.panX=(state.panX-(cx-width/2))*r+(cx-width/2);
+        state.panY=(state.panY-(cy-height/2))*r+(cy-height/2);state.zoom=next;requestDraw();
+      }
+      function point(event){const r=scene.getBoundingClientRect();return {x:event.clientX-r.left,y:event.clientY-r.top}}
+      function world(p){return {x:(p.x-offsetX)/scale,y:(p.y-offsetY)/scale}}
+      function cornerAt(p){
+        if(!state.ready||state.camera>=0||!state.annotations)return null;
+        let nearest=null,best=10/scale;
+        for(let i=state.boxes.length-1;i>=0;i--){
+          const box=state.boxes[i];if(!box.visible)continue;
+          [...box.points.slice(0,4),...projected(box)].forEach((vertex,j)=>{
+            const distance=Math.hypot(p.x-vertex.x,p.y-vertex.y);
+            if(distance<best){best=distance;nearest={box:i,corner:j}}
+          });
+        }
+        return nearest;
+      }
+      function inFace(p,points){
+        let inside=false;
+        for(let i=0,j=points.length-1;i<points.length;j=i++){
+          const a=points[i],b=points[j];
+          if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside;
+        }
+        return inside;
+      }
+      scene.addEventListener('wheel',event=>{event.preventDefault();const p=point(event);zoom(Math.exp(-event.deltaY*.0015),p.x,p.y)},{passive:false});
+      scene.addEventListener('pointerdown',event=>{
+        if(event.button!==0||!state.ready||pointer)return;stop();const p=point(event),w=world(p);scene.setPointerCapture(event.pointerId);
+        pointer={id:event.pointerId,x:p.x,y:p.y,panX:state.panX,panY:state.panY,world:w,kind:'pan'};
+        const handle=cornerAt(w);
+        if(handle){
+          state.selected=handle.box;pointer.kind='corner';pointer.corner=handle.corner;
+          pointer.start=state.boxes[handle.box].points.map(p=>({...p}));updateObjects();
+        }
+        else if(state.mode==='draw'&&state.camera<0){draft=makeBox(w.x,w.y,0,0,state.color);pointer.kind='draw'}
+        else if(state.mode==='select'&&state.camera<0&&state.annotations){
+          const hit=state.boxes.findLastIndex(box=>box.visible&&(inFace(w,box.points.slice(0,4))||inFace(w,projected(box))));
+          state.selected=hit;updateObjects();
+          if(hit>=0){pointer.kind='box';pointer.start=state.boxes[hit].points.map(p=>({...p}))}
+        }
+        scene.classList.add('is-dragging');requestDraw();
+      });
+      scene.addEventListener('pointermove',event=>{
+        const p=point(event),w=world(p);
+        if(!pointer){scene.classList.toggle('is-corner',!!cornerAt(w));return}
+        if(pointer.id!==event.pointerId)return;
+        const dx=w.x-pointer.world.x,dy=w.y-pointer.world.y;
+        if(pointer.kind==='draw'){
+          draft=makeBox(Math.min(pointer.world.x,w.x),Math.min(pointer.world.y,w.y),Math.abs(dx),Math.abs(dy),state.color);
+        }
+        else if(pointer.kind==='box'||pointer.kind==='corner'){
+          const box=state.boxes[state.selected];if(!box)return;
+          if(!pointer.edited){
+            if(Math.hypot(dx,dy)*scale<1)return;
+            saveHistory();pointer.edited=true;
+          }
+          if(pointer.kind==='corner'){
+            const i=pointer.corner,base=pointer.start[i];box.points[i]={x:base.x+dx,y:base.y+dy};
+          }else{box.points=pointer.start.map(p=>({x:p.x+dx,y:p.y+dy}))}
+        }else{state.panX=pointer.panX+p.x-pointer.x;state.panY=pointer.panY+p.y-pointer.y}requestDraw();
+      });
+      function finish(event,commit){
+        if(!pointer||event.pointerId!==pointer.id)return;
+        if(commit&&draft&&(draft.points[1].x-draft.points[0].x)*scale>8&&(draft.points[3].y-draft.points[0].y)*scale>8){
+          saveHistory();state.boxes.push(draft);state.selected=state.boxes.length-1;updateObjects();
+        }
+        draft=null;pointer=null;scene.classList.remove('is-dragging','is-corner');requestDraw();
+      }
+      scene.addEventListener('pointerup',event=>finish(event,true));
+      scene.addEventListener('lostpointercapture',event=>finish(event,false));
+      scene.addEventListener('pointercancel',event=>finish(event,false));
+      $$('button[data-mode]').forEach(el=>el.addEventListener('click',()=>setMode(el.dataset.mode)));
+      $('#cloud').addEventListener('click',showCloud);$('#add').addEventListener('click',()=>{showCloud();setMode('draw')});
+      $('#fit').addEventListener('click',resetView);$('#zoom-in').addEventListener('click',()=>zoom(1.2));$('#zoom-out').addEventListener('click',()=>zoom(1/1.2));
+      $('#annotations').addEventListener('click',()=>{state.annotations=!state.annotations;$('#annotations').setAttribute('aria-pressed',String(state.annotations));requestDraw()});
+      $('#undo').addEventListener('click',()=>{if(!history.length)return;Object.assign(state,JSON.parse(history.pop()));updateObjects();requestDraw()});
+      $$('.color').forEach(el=>el.addEventListener('click',()=>{state.color=el.dataset.color;if(state.selected>=0){saveHistory();state.boxes[state.selected].color=state.color;updateObjects()}$$('.color').forEach(b=>b.setAttribute('aria-pressed',String(b===el)));requestDraw()}));
+      $$('.camera').forEach((el,i)=>el.addEventListener('click',()=>{state.camera=i;resetView();$$('.camera').forEach(b=>b.setAttribute('aria-pressed',String(b===el)))}));
+      $$('.preview').forEach((el,i)=>el.addEventListener('click',()=>{showCloud();state.zoom=1.65;state.panX=(1-i)*width*.25;$$('.preview').forEach(b=>b.setAttribute('aria-pressed',String(b===el)));requestDraw()}));
+      $('#brightness').addEventListener('input',event=>{state.brightness=+event.target.value;requestDraw()});$('#opacity').addEventListener('input',event=>{state.opacity=+event.target.value/100;requestDraw()});
+      scrub.addEventListener('input',()=>{stop();state.phase=+scrub.value;requestDraw()});
+      $('#previous').addEventListener('click',()=>{stop();state.phase=clamp(state.phase-40,0,1000);scrub.value=state.phase;requestDraw()});
+      $('#next').addEventListener('click',()=>{stop();state.phase=clamp(state.phase+40,0,1000);scrub.value=state.phase;requestDraw()});
+      function togglePlay(){state.play=!state.play;lastTime=0;$('#play').setAttribute('aria-pressed',String(state.play));$('#play').innerHTML=icon(state.play?'pause':'play');requestDraw()}
+      $('#play').addEventListener('click',togglePlay);
+      $('#reset').addEventListener('click',()=>{state.boxes=makeBoxes();state.selected=0;state.brightness=100;state.opacity=1;state.annotations=true;state.color='#f1ec28';history.length=0;$('#brightness').value=100;$('#opacity').value=100;$('#annotations').setAttribute('aria-pressed','true');$$('.color').forEach((el,i)=>el.setAttribute('aria-pressed',String(i===0)));showCloud();setMode('pan');updateObjects()});
+
+      function splitter(el,compute,apply,initial,step=2){
+        let active=false,value=initial;
+        const set=v=>{value=clamp(v,+el.getAttribute('aria-valuemin'),+el.getAttribute('aria-valuemax'));el.setAttribute('aria-valuenow',String(Math.round(value)));apply(value);updateAll()};
+        el.addEventListener('pointerdown',event=>{if(event.button!==0)return;active=true;el.setPointerCapture(event.pointerId)});
+        el.addEventListener('pointermove',event=>{if(active)set(compute(event))});
+        el.addEventListener('pointerup',()=>active=false);el.addEventListener('pointercancel',()=>active=false);
+        el.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown'].includes(event.key)){event.preventDefault();set(value+(['ArrowLeft','ArrowUp'].includes(event.key)?-step:step))}});
+      }
+      splitter($('#left-split'),e=>e.clientX/innerWidth*100,v=>app.style.setProperty('--left',`${v}%`),22);
+      splitter($('#right-split'),e=>innerWidth-e.clientX,v=>app.style.setProperty('--right',`${v}px`),188,10);
+      splitter($('#lower-split'),e=>{const r=$('.middle').getBoundingClientRect();return(e.clientY-r.top)/r.height*100},v=>app.style.setProperty('--upper',`${v}%`),72);
+      new ResizeObserver(updateAll).observe($('.workspace'));
+      window.addEventListener('resize',updateAll);
+      const trackerLabel=$('#tracker-label');
+      const trackerOutline=tracker.querySelector('path');
+      const trackerNodes=[...tracker.querySelectorAll('circle')];
+      const restingCorners=[...rectangle(8,18,54,46),...rectangle(22,8,54,46)];
+      const looseCorners=restingCorners.map(({x,y})=>({x,y,vx:0,vy:0}));
+      const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+      let trackerFrame=0,trackerTimer=0,tx=0,ty=0,enabled=true,inside=false;
+      let trackerDown=null,trackerDragging=false,movingUntil=0,clickedUntil=0;
+      let motionX=1,motionY=0,motionSpeed=0,gestureTime=0,animationTime=0;
+      let operationCount=0,lastOperation='IDLE',seriesUntil=0,dragConsumedClick=false;
+      function recordOperation(action,now,gap=0){
+        if(!gap||lastOperation!==action||now>=seriesUntil)operationCount++;
+        lastOperation=action;
+        seriesUntil=gap?now+gap:0;
+      }
+      function positionPercent(position,extent){
+        return Math.round(clamp(position/Math.max(1,extent-1),0,1)*100)+'%';
+      }
+      function currentCursorState(){
+        const target=document.elementFromPoint(tx,ty);
+        const cursor=(target?getComputedStyle(target).cursor:'auto').split(',').pop().trim();
+        if(cursor==='pointer')return 'CLICKABLE';
+        if(cursor==='text'||cursor==='vertical-text')return 'TEXT';
+        if(cursor==='wait'||cursor==='progress')return 'WAITING';
+        if(cursor==='grabbing')return 'DRAGGING';
+        if(cursor==='grab')return 'DRAGGABLE';
+        if(cursor.endsWith('-resize'))return 'RESIZABLE';
+        if(cursor==='crosshair'||cursor==='cell')return 'CROSSHAIR';
+        if(cursor==='not-allowed'||cursor==='no-drop')return 'NOT ALLOWED';
+        if(cursor==='zoom-in'||cursor==='zoom-out')return 'ZOOM';
+        if(cursor==='move'||cursor==='all-scroll')return 'MOVABLE';
+        return 'IDLE';
+      }
+      function relaxTracker(action,now){
+        const step=animationTime?clamp((now-animationTime)/16.67,.35,2):1;
+        animationTime=now;
+        const directional=action==='MOVING'||action==='DRAGGING';
+        const stretch=action==='DRAGGING'?0.58+motionSpeed*.48:action==='MOVING'?.21+motionSpeed*.42:0;
+        const [sx,sy,depth]=({
+          CLICK:[.73,.75,.79], TEXT:[.54,1.25,.84], CLICKABLE:[1.08,.88,.97],
+          WAITING:[.86,1.20,1.06], DRAGGING:[.94,.94,1.14], RESIZABLE:[1.16,.9,.96],
+          CROSSHAIR:[1.05,1.05,1]
+        })[action]||[1,1,1];
+        let unsettled=false;
+        looseCorners.forEach((p,i)=>{
+          const rear=i>=4,start=restingCorners[i%4],x=start.x-35,y=start.y-41;
+          const along=x*motionX+y*motionY,across=-x*motionY+y*motionX;
+          const extension=directional?along*stretch*(along<0?1.33:.56)*(rear?.76:1):0;
+          const skew=directional?across*stretch*(rear?-.13:.21):0;
+          const gx=35+x*sx+motionX*(extension+skew)+(rear?14*depth:0);
+          const gy=41+y*sy+motionY*(extension+skew)-(rear?10*depth:0);
+          if(reducedMotion.matches){p.x=gx;p.y=gy;p.vx=p.vy=0;return}
+          // Slightly different stiffness lets the corners catch up separately.
+          const k=[.19,.16,.13,.17,.105,.135,.155,.115][i],damping=Math.pow(.73,step);
+          p.vx=(p.vx+(gx-p.x)*k*step)*damping;p.vy=(p.vy+(gy-p.y)*k*step)*damping;
+          p.x+=p.vx*step;p.y+=p.vy*step;
+          if(Math.abs(p.x-gx)+Math.abs(p.y-gy)+Math.abs(p.vx)+Math.abs(p.vy)>.11)unsettled=true;
+          else{p.x=gx;p.y=gy;p.vx=p.vy=0}
+        });
+        const front=looseCorners.slice(0,4),back=looseCorners.slice(4);
+        const at=p=>p.x.toFixed(2)+' '+p.y.toFixed(2);
+        const outline=points=>'M'+points.map(at).join('L')+'Z';
+        trackerOutline.setAttribute('d',outline(front)+outline(back)+front.map((p,i)=>'M'+at(p)+'L'+at(back[i])).join(''));
+        [front,back].forEach((plane,j)=>[0,1,3,2].forEach((i,k)=>{
+          const node=trackerNodes[j*4+k];node.setAttribute('cx',plane[i].x.toFixed(2));node.setAttribute('cy',plane[i].y.toFixed(2));
+        }));
+        return {
+          unsettled,
+          x:Math.min(...looseCorners.map(p=>p.x))-42,
+          top:Math.min(...looseCorners.map(p=>p.y))-36,
+          bottom:Math.max(...looseCorners.map(p=>p.y))-36
+        };
+      }
+      function positionTracker(now){
+        trackerFrame=0;clearTimeout(trackerTimer);trackerTimer=0;
+        tracker.hidden=!enabled||!inside;if(tracker.hidden)return;
+        tracker.style.transform=`translate3d(${tx}px,${ty}px,0)`;
+        const action=trackerDragging?'DRAGGING':clickedUntil>now?'CLICK':movingUntil>now?'MOVING':currentCursorState();
+        const text=`${operationCount}. VOIDED; ${lastOperation.toLowerCase()}; ${positionPercent(tx,innerWidth)}-${positionPercent(ty,innerHeight)}`;
+        if(trackerLabel.textContent!==text)trackerLabel.innerHTML=`${operationCount}. <span class="voided">VOIDED</span>; ${lastOperation.toLowerCase()}; ${positionPercent(tx,innerWidth)}-${positionPercent(ty,innerHeight)}`;
+        const shape=relaxTracker(action,now);
+        const left=clamp(tx+shape.x,5,Math.max(5,innerWidth-trackerLabel.offsetWidth-5));
+        const top=ty+shape.top-trackerLabel.offsetHeight-6;
+        trackerLabel.style.left=`${left-tx}px`;
+        trackerLabel.style.top=`${clamp(top<5?ty+shape.bottom+7:top,5,innerHeight-trackerLabel.offsetHeight-5)-ty}px`;
+        const next=clickedUntil>now?clickedUntil:movingUntil>now?movingUntil:0;
+        if(shape.unsettled)requestTracker();
+        else{animationTime=0;if(next)trackerTimer=setTimeout(requestTracker,next-now+1)}
+      }
+      function requestTracker(){if(!trackerFrame)trackerFrame=requestAnimationFrame(positionTracker)}
+      function track(event){tx=event.clientX;ty=event.clientY;inside=true}
+      function resetTracker(){inside=false;trackerDown=null;trackerDragging=false;movingUntil=clickedUntil=gestureTime=animationTime=seriesUntil=0;requestTracker()}
+      const trackerOptions={passive:true,capture:true};
+      window.addEventListener('pointermove',event=>{
+        if(event.pointerType==='touch')return;
+        const now=performance.now(),dx=event.clientX-tx,dy=event.clientY-ty,distance=Math.hypot(dx,dy);
+        if(trackerDown){
+          if(!trackerDragging&&Math.hypot(event.clientX-trackerDown.x,event.clientY-trackerDown.y)>5){
+            trackerDragging=true;dragConsumedClick=true;
+            recordOperation('DRAGGING',now);
+          }
+        }else if(distance>0||!inside)recordOperation('MOVING',now,180);
+        if(inside&&distance>0){
+          motionX=dx/distance;motionY=dy/distance;motionSpeed=clamp(distance/Math.max(8,now-gestureTime)/1.4,0,1);
+        }
+        gestureTime=now;track(event);
+        movingUntil=now+135;requestTracker();
+      },trackerOptions);
+      window.addEventListener('pointerdown',event=>{
+        if(event.pointerType==='touch'||event.button!==0)return;
+        track(event);trackerDown={x:tx,y:ty};trackerDragging=false;dragConsumedClick=false;seriesUntil=0;requestTracker();
+      },trackerOptions);
+      window.addEventListener('pointerup',event=>{
+        if(event.pointerType==='touch'||event.button!==0)return;
+        trackerDown=null;trackerDragging=false;requestTracker();
+      },trackerOptions);
+      window.addEventListener('click',event=>{
+        if(!event.detail||event.pointerType==='touch')return;
+        if(dragConsumedClick){dragConsumedClick=false;return}
+        const now=performance.now();recordOperation('CLICK',now);
+        track(event);clickedUntil=now+360;requestTracker();
+      },trackerOptions);
+      window.addEventListener('wheel',event=>{
+        if(!event.deltaX&&!event.deltaY&&!event.deltaZ)return;
+        recordOperation(event.target===scene?'ZOOM':'SCROLL',performance.now(),210);
+        track(event);requestTracker();
+      },trackerOptions);
+      window.addEventListener('pointerout',event=>{if(!event.relatedTarget)resetTracker()},{passive:true});
+      window.addEventListener('pointercancel',resetTracker);
+      window.addEventListener('blur',()=>{resetTracker();stop()});
+      window.addEventListener('resize',requestTracker);
+      new MutationObserver(records=>{
+        if(inside&&records.some(record=>!tracker.contains(record.target)))requestTracker();
+      }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['style','class','disabled','aria-busy']});
+      window.addEventListener('keydown',event=>{
+        if(event.key==='Escape'&&!event.repeat){enabled=!enabled;requestTracker()}
+        if(event.code==='Space'&&event.target===document.body){event.preventDefault();togglePlay()}
+      });
+      state.ready=true;app.dataset.ready='true';
+      updateAll();updateObjects();
+    })();
+  </script>
+</body>
+</html>
